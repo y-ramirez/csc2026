@@ -3,9 +3,13 @@ project(tt_e1_debugging_sanitizers LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(ENABLE_SANITIZERS "Enable ASan/UBSan for debugging" OFF)
 
+# -----------------------------------------------------------------------------
+# Sanitizers (course expects Clang for consistent ASan output)
+# -----------------------------------------------------------------------------
 if(ENABLE_SANITIZERS)
   if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(FATAL_ERROR
@@ -13,21 +17,31 @@ if(ENABLE_SANITIZERS)
       "Reconfigure with:\n"
       "  rm -rf build-asan\n"
       "  CC=clang CXX=clang++ cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON\n"
-      "  cmake --build build-asan\n"
-      "  ./build-asan/analyze\n")
+      "  cmake --build build-asan -j\"$(nproc)\"\n"
+      "  ./build-asan/analyze\n"
+    )
   endif()
 
   message(STATUS "Sanitizers: ON (address,undefined)")
 
   add_library(tt_e1_sanitize_flags INTERFACE)
+
+  # Critical: disable libstdc++ bounds-check abort so ASan can report (slides 15/16 style)
+  target_compile_definitions(tt_e1_sanitize_flags INTERFACE
+    _GLIBCXX_NO_ASSERTIONS
+  )
+
+  # Safety: if something injects these, remove them
   target_compile_options(tt_e1_sanitize_flags INTERFACE
+    -U_GLIBCXX_ASSERTIONS
+    -U_GLIBCXX_DEBUG
+    -U_GLIBCXX_DEBUG_PEDANTIC
+
     -fsanitize=address,undefined
     -fno-omit-frame-pointer
     -g
-    # safety: if the environment injects these, remove them so ASan report matches slides
-    -U_GLIBCXX_ASSERTIONS
-    -U_GLIBCXX_DEBUG
   )
+
   target_link_options(tt_e1_sanitize_flags INTERFACE
     -fsanitize=address,undefined
   )
